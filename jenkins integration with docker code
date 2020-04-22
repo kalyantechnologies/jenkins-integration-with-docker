@@ -1,0 +1,33 @@
+node
+{
+    def buildNumber = BUILD_NUMBER
+    stage('git clone')
+    {
+        git url:'https://github.com/kalyantechnologies/java-web-app-docker.git', branch:'master'
+    }
+    stage('mven clean package')
+    {
+        def mavenHome= tool name: "maven",type: "maven"
+        sh "${mavenHome}/bin/mvn clean package"
+    }
+    stage('build docker image')
+    {
+        sh "docker build -t kalyan95/java-web-app-docker:${buildNumber} ."
+    }
+    stage('docker login and push')
+    {
+       withCredentials([string(credentialsId: 'dockerhubpwd', variable: 'dockerhubpwd')]) {
+            sh "docker login -u kalyan95 -p ${dockerhubpwd}"
+        }
+        sh "docker push kalyan95/java-web-app-docker:${buildNumber}"
+    }
+    stage('deploy appliction as docker container in docker deployment server')
+    {
+        sshagent(['dockerdevserverssh']) {
+        sh "ssh -o StrictHostKeyChecking=no ubuntu@52.66.248.214 docker rm -f javawebappcontainer || true"
+        
+       sh "ssh -o StrictHostKeyChecking=no ubuntu@52.66.248.214 docker run -d -p 8080:8080 --name javawebappcontainer kalyan95/java-web-app-docker:${buildNumber}"
+      }
+   }
+    
+}
